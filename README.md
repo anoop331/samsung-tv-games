@@ -1,46 +1,90 @@
-# Getting Started with Create React App
+# React TV Game
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+A React-based game developed for Samsung Smart TVs using the Tizen platform.
 
-## Available Scripts
+## Prerequisites
 
-In the project directory, you can run:
+1. Install Tizen Studio CLI
+   - Download Tizen Studio CLI from [Samsung Developers](https://developer.samsung.com/smarttv/develop/getting-started/setting-up-sdk/installing-tv-sdk.html)
+   - Choose "Tizen Studio 6.0 with CLI installer"
+   - Install it to your home directory (`~/tizen`)
 
-### `npm start`
+2. Samsung TV Setup
+   - Enable Developer Mode on your TV:
+     1. Go to Apps
+     2. Press 1, 2, 3, 4, 5 in sequence on your remote
+     3. Enable Developer Mode when prompted
+     4. The TV will restart
+   - After restart:
+     1. Go to Settings > System > About
+     2. Note your TV's IP address
+     3. In Developer Mode settings, set the Host IP to your computer's IP address
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in the browser.
+## Development Setup
 
-The page will reload if you make edits.\
-You will also see any lint errors in the console.
+```bash
+# Install dependencies
+npm install
 
-### `npm test`
+# Start development server
+npm start
+```
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+## Building and Deploying
 
-### `npm run build`
+### Manual Steps
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+1. Build the React app:
+```bash
+npm run build:tv
+```
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+2. Connect to your TV:
+```bash
+~/tizen/tools/sdb connect YOUR_TV_IP
+```
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+3. Create certificate (first time only):
+```bash
+tizen certificate -a MyTVCert -p 1234 -c US -s California -ct "Development" -n "My TV App" -e "dev@example.com" -f MyTVCert
+tizen security-profiles add -n MyTVProfile -a ~/tizen-data/keystore/author/MyTVCert.p12 -p 1234
+tizen cli-config "profiles.path=~/tizen-data/profile/profiles.xml"
+```
 
-### `npm run eject`
+4. Package and install:
+```bash
+cd build
+tizen package -t wgt -s MyTVProfile -- .
+tizen install -s YOUR_TV_IP:26101 -n ReactTVGame.wgt
+```
 
-**Note: this is a one-way operation. Once you `eject`, you can’t go back!**
+### Automated Deployment
 
-If you aren’t satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+You can use the provided deployment script:
+```bash
+./deploy-tv.sh YOUR_TV_IP
+```
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you’re on your own.
+## Controls
 
-You don’t have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn’t feel obligated to use this feature. However we understand that this tool wouldn’t be useful if you couldn’t customize it when you are ready for it.
+- Use Arrow Keys for navigation
+- Enter/Return to select
+- Back button to return to previous screen
 
-## Learn More
+## Troubleshooting
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+1. If installation fails:
+   - Turn off Developer Mode
+   - Restart TV
+   - Turn Developer Mode back on
+   - Try deployment again
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+2. If app doesn't appear:
+   - Check TV's Apps section
+   - Verify both TV and computer are on the same network
+   - Ensure Host IP is set correctly in TV's developer settings
+
+3. Connection issues:
+   - Verify TV's IP address
+   - Check network connectivity
+   - Restart the SDB server using `~/tizen/tools/sdb kill-server && ~/tizen/tools/sdb start-server`

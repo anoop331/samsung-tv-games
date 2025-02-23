@@ -1,25 +1,29 @@
-import React from 'react';
-import logo from './logo.svg';
-import './App.css';
+import React, { useState } from 'react';
+import { GameMenu, GameType } from './components/GameMenu';
+import { PacmanGame } from './components/PacmanGame';
+import { SnakeGame } from './components/SnakeGame';
+import { SnakeLadders } from './components/SnakeLadders';
+import { MarioGame } from './components/MarioGame';
 
 function App() {
+  const [currentGame, setCurrentGame] = useState<GameType>('menu');
+
+  const handleGameSelect = (game: GameType) => {
+    setCurrentGame(game);
+  };
+
+  const handleReturnToMenu = () => {
+    setCurrentGame('menu');
+  };
+
   return (
-    <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.tsx</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header>
-    </div>
+    <>
+      {currentGame === 'menu' && <GameMenu onSelectGame={handleGameSelect} />}
+      {currentGame === 'pacman' && <PacmanGame onReturnToMenu={handleReturnToMenu} />}
+      {currentGame === 'snake' && <SnakeGame onReturnToMenu={handleReturnToMenu} />}
+      {currentGame === 'snakeladders' && <SnakeLadders onReturnToMenu={handleReturnToMenu} />}
+      {currentGame === 'mario' && <MarioGame onReturnToMenu={handleReturnToMenu} />}
+    </>
   );
 }
 
