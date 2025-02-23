@@ -225,6 +225,53 @@ const initialBoard: CellType[][] = MAZE_LAYOUT.map(row =>
 
 type GameState = 'playing' | 'paused' | 'game-over' | 'level-complete';
 
+const canMove = (board: CellType[][], position: Position, direction: Direction): boolean => {
+  let newX = position.x;
+  let newY = position.y;
+
+  switch (direction) {
+    case 'UP': newY -= 1; break;
+    case 'DOWN': newY += 1; break;
+    case 'LEFT': newX -= 1; break;
+    case 'RIGHT': newX += 1; break;
+  }
+
+  // Check bounds
+  if (newX < 0 || newX >= GRID_SIZE || newY < 0 || newY >= GRID_SIZE) {
+    return false;
+  }
+
+  // Check wall collision
+  return board[newY][newX] !== 'wall';
+};
+
+const moveGhosts = (ghosts: Position[], pacman: Position, board: CellType[][]): Position[] => {
+  return ghosts.map(ghost => {
+    // Simple ghost AI: Move towards Pacman
+    const dx = pacman.x - ghost.x;
+    const dy = pacman.y - ghost.y;
+    
+    let newX = ghost.x;
+    let newY = ghost.y;
+
+    // Try horizontal movement
+    if (Math.abs(dx) > Math.abs(dy)) {
+      newX = ghost.x + Math.sign(dx);
+      if (newX >= 0 && newX < GRID_SIZE && board[ghost.y][newX] !== 'wall') {
+        return { x: newX, y: ghost.y };
+      }
+    }
+    
+    // Try vertical movement
+    newY = ghost.y + Math.sign(dy);
+    if (newY >= 0 && newY < GRID_SIZE && board[newY][ghost.x] !== 'wall') {
+      return { x: ghost.x, y: newY };
+    }
+
+    return ghost;
+  });
+};
+
 export const PacmanGame: React.FC<{ onReturnToMenu: () => void }> = ({ onReturnToMenu }) => {
   const [board, setBoard] = useState<CellType[][]>(initialBoard);
   const [pacman, setPacman] = useState<Position>({ x: 14, y: 23 });
@@ -273,12 +320,56 @@ export const PacmanGame: React.FC<{ onReturnToMenu: () => void }> = ({ onReturnT
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      // Samsung TV remote key codes
+      if (gameState !== 'playing') {
+        switch (event.key) {
+          case 'Enter':
+          case '5':
+            if (gameState === 'game-over') {
+              setLives(INITIAL_LIVES);
+              setLevel(INITIAL_LEVEL);
+              setScore(0);
+              setGameState('playing');
+              initializeLevel();
+            }
+            break;
+          case '9':
+          case 'Escape':
+            onReturnToMenu();
+            break;
+        }
+        return;
+      }
+
       switch (event.key) {
-        // ... [Copy existing key handlers]
-        
-        // Add return to menu on '9' key
-        case '9': // Return button on remote
+        case 'ArrowUp':
+        case '8':
+          setDirection('UP');
+          break;
+        case 'ArrowDown':
+        case '2':
+          setDirection('DOWN');
+          break;
+        case 'ArrowLeft':
+        case '4':
+          setDirection('LEFT');
+          break;
+        case 'ArrowRight':
+        case '6':
+          setDirection('RIGHT');
+          break;
+        case 'p':
+        case 'P':
+        case '5':
+          setGameState(prev => prev === 'playing' ? 'paused' : 'playing');
+          break;
+        case '0':
+          setIsOptionsOpen(prev => !prev);
+          if (gameState === 'playing') setGameState('paused');
+          break;
+        case '1':
+          setIsMuted(soundManager.toggleMute());
+          break;
+        case '9':
         case 'Escape':
           onReturnToMenu();
           break;
@@ -287,7 +378,107 @@ export const PacmanGame: React.FC<{ onReturnToMenu: () => void }> = ({ onReturnT
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [gameState, onReturnToMenu]);
+  }, [gameState, onReturnToMenu, initializeLevel]);
+
+  // Game loop
+  useEffect(() => {
+    if (gameState !== 'playing') return;
+
+    const gameLoop = setInterval(() => {
+      // Move Pacman
+      if (canMove(board, pacman, direction)) {
+        const newPosition = { ...pacman };
+        switch (direction) {
+          case 'UP': newPosition.y -= 1; break;
+          case 'DOWN': newPosition.y += 1; break;
+          case 'LEFT': newPosition.x -= 1; break;
+          case 'RIGHT': newPosition.x += 1; break;
+        }
+
+        // Update board and score
+        const cell = board[newPosition.y][newPosition.x];
+        if (cell === 'dot') {
+          setScore(prev => prev + 10);
+          setDotsRemaining(prev => prev - 1);
+          soundManager.play('chomp');
+          setBoard(prev => {
+            const newBoard = [...prev];
+            newBoard[newPosition.y][newPosition.x] = 'empty';
+            return newBoard;
+          });
+        } else if (cell === 'power') {
+          setScore(prev => prev + 50);
+          setDotsRemaining(prev => prev - 1);
+          setGhostsVulnerable(true);
+          soundManager.play('powerPellet');
+          setBoard(prev => {
+            const newBoard = [...prev];
+            newBoard[newPosition.y][newPosition.x] = 'empty';
+            return newBoard;
+          });
+          
+          // Reset ghost vulnerability after time
+          setTimeout(() => {
+            setGhostsVulnerable(false);
+          }, VULNERABLE_TIME);
+        }
+
+        setPacman(newPosition);
+      }
+
+      // Move ghosts
+      const newGhosts = moveGhosts(ghosts, pacman, board);
+      setGhosts(newGhosts);
+
+      // Check ghost collisions
+      const ghostCollision = newGhosts.some(ghost => 
+        ghost.x === pacman.x && ghost.y === pacman.y
+      );
+
+      if (ghostCollision) {
+        if (ghostsVulnerable) {
+          setScore(prev => prev + 200);
+          soundManager.play('ghost');
+          setGhosts(prev => prev.map(ghost => 
+            ghost.x === pacman.x && ghost.y === pacman.y
+              ? { x: 13, y: 14 } // Reset ghost position
+              : ghost
+          ));
+        } else {
+          soundManager.play('death');
+          setLives(prev => prev - 1);
+          if (lives <= 1) {
+            setGameState('game-over');
+          } else {
+            // Reset positions
+            setPacman({ x: 14, y: 23 });
+            setGhosts([
+              { x: 13, y: 14 },
+              { x: 14, y: 14 },
+              { x: 13, y: 15 },
+              { x: 14, y: 15 }
+            ]);
+          }
+        }
+      }
+
+      // Check level completion
+      if (dotsRemaining === 0) {
+        if (level < MAX_LEVEL) {
+          setLevel(prev => prev + 1);
+          setGameState('level-complete');
+          setTimeout(() => {
+            initializeLevel();
+            setGameState('playing');
+          }, 2000);
+        } else {
+          setGameState('game-over');
+        }
+      }
+    }, getGameSpeed(level));
+
+    return () => clearInterval(gameLoop);
+  }, [gameState, board, pacman, direction, ghosts, ghostsVulnerable, lives, level, dotsRemaining, initializeLevel]);
 
   return (
     <GameContainer>
